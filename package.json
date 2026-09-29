@@ -1,0 +1,96 @@
+{
+  "name": "indratrace",
+  "version": "0.1.0",
+  "description": "One-line OpenTelemetry setup for IndraTrace: HTTP, LLM calls and logs in one trace tree.",
+  "license": "Apache-2.0",
+  "author": "Indrasol",
+  "homepage": "https://github.com/indrasol/indratrace-node-sdk#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/indrasol/indratrace-node-sdk.git"
+  },
+  "bugs": "https://github.com/indrasol/indratrace-node-sdk/issues",
+  "keywords": [
+    "opentelemetry",
+    "observability",
+    "tracing",
+    "llm",
+    "openai",
+    "anthropic",
+    "agents",
+    "apm"
+  ],
+  "type": "module",
+  "engines": {
+    "node": ">=20.6"
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./register": {
+      "import": "./dist/register.js",
+      "require": "./dist/register.cjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": [
+    "./dist/register.js",
+    "./dist/register.cjs"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "prepack": "npm run build",
+    "smoke": "node dev/smoke/run.mjs"
+  },
+  "dependencies": {
+    "@fastify/otel": "^0.21.0",
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/api-logs": "^0.222.0",
+    "@opentelemetry/core": "^2.11.0",
+    "@opentelemetry/exporter-logs-otlp-proto": "^0.222.0",
+    "@opentelemetry/exporter-metrics-otlp-proto": "^0.222.0",
+    "@opentelemetry/exporter-trace-otlp-proto": "^0.222.0",
+    "@opentelemetry/instrumentation": "^0.222.0",
+    "@opentelemetry/instrumentation-express": "^0.70.0",
+    "@opentelemetry/instrumentation-http": "^0.222.0",
+    "@opentelemetry/instrumentation-pino": "^0.68.0",
+    "@opentelemetry/instrumentation-undici": "^0.32.0",
+    "@opentelemetry/instrumentation-winston": "^0.66.0",
+    "@opentelemetry/resources": "^2.11.0",
+    "@opentelemetry/sdk-logs": "^0.222.0",
+    "@opentelemetry/sdk-metrics": "^2.11.0",
+    "@opentelemetry/sdk-trace-base": "^2.11.0",
+    "@opentelemetry/sdk-trace-node": "^2.11.0",
+    "@opentelemetry/winston-transport": "^0.32.0",
+    "@traceloop/instrumentation-anthropic": "^0.27.0",
+    "@traceloop/instrumentation-openai": "^0.27.0"
+  },
+  "devDependencies": {
+    "@anthropic-ai/sdk": "*",
+    "@types/node": "^22.12.0",
+    "express": "^5.1.0",
+    "fastify": "^5.4.0",
+    "openai": "*",
+    "pino": "^9.7.0",
+    "tsup": "^8.5.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.0",
+    "winston": "^3.17.0"
+  }
+}

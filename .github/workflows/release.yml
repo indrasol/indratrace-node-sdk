@@ -1,0 +1,54 @@
+name: Release
+
+# Fires only when a version tag is pushed. Tagging is a deliberate human act -
+# CI never tags.
+#
+# One-time setup, before the first tag: the FIRST version is published by hand
+# (`npm publish --access public`), because npm only lets you attach a trusted
+# publisher to a package that exists. Then on npmjs.com: package settings ->
+# Trusted Publisher -> GitHub Actions, repo indrasol/indratrace-node-sdk,
+# workflow release.yml, environment npm. After that no token exists anywhere.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: publish to npm (trusted publishing)
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write # the short-lived OIDC token npm trusts, and the provenance statement
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          # Trusted publishing needs npm >= 11.5, which Node 24 ships.
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+
+      # Guard: the tag must match package.json AND src/version.ts. npm version
+      # numbers can never be reused, so a mismatched publish is unrecoverable.
+      - name: Assert tag matches package version
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          pkg="$(node -p "require('./package.json').version")"
+          src="$(sed -n 's/^export const VERSION = "\(.*\)";$/\1/p' src/version.ts)"
+          echo "tag=$tag package.json=$pkg version.ts=$src"
+          if [ "$tag" != "$pkg" ] || [ "$tag" != "$src" ]; then
+            echo "::error::tag v$tag does not match package.json $pkg / version.ts $src - refusing to publish"
+            exit 1
+          fi
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run smoke
+      - run: npm publish --provenance --access public
