@@ -317,7 +317,9 @@ export function initObservability(options: InitOptions = {}): Promise<void> {
     return Promise.resolve();
   }
 
-  const checked = preflight(cfg).catch((err: unknown) => {
+  // Start the check once the app's own synchronous startup (its requires) has run,
+  // so a slow boot is not timed as a slow network.
+  const checked = new Promise<void>((r) => setImmediate(r)).then(() => preflight(cfg)).catch((err: unknown) => {
     if (err instanceof IndraTraceConfigError) throw err;
     log.debug(`startup preflight crashed: ${errorText(err)}`);
   });

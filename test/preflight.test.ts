@@ -31,6 +31,16 @@ describe("runPreflight against a fake gateway", () => {
     expect(gw.requests[0]!.body.length).toBe(0);
   });
 
+  it("a boot that blocks the event loop past the timeout is not reported as a network problem", async () => {
+    gw = await fakeGateway(200, "", "application/x-protobuf");
+    const pending = runPreflight(cfgFor(gw.url));
+    const until = Date.now() + 2500; // longer than the 2 s connect window
+    while (Date.now() < until) {
+      // a CJS app requiring its dependencies synchronously
+    }
+    expect((await pending).cause).toBe("ok");
+  });
+
   it("401 names the key, and never contains it", async () => {
     gw = await fakeGateway(401, JSON.stringify({ title: "unauthorized", detail: "invalid key" }));
     const d = await runPreflight(cfgFor(gw.url));

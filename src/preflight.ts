@@ -313,6 +313,16 @@ export function runPreflight(cfg: ObsConfig): Promise<Diagnosis> {
       resolve(d);
     };
     const fail = (code: string) => finish(diagnoseException(timeoutError(code), cfg));
+    let connected = false;
+    // A timer can fire late and ahead of I/O that is already waiting: an app that
+    // loads its modules synchronously for 2+ s at boot blocks the event loop, and
+    // Node runs due timers before pending I/O. setImmediate runs after that I/O, so
+    // a connection or response that did arrive is seen before we call it a timeout.
+    const expire = (code: "IT_CONNECT_TIMEOUT" | "IT_READ_TIMEOUT") =>
+      setImmediate(() => {
+        if (code === "IT_CONNECT_TIMEOUT" && connected) return;
+        fail(code);
+      });
     // Our own request must not become a span in the customer's trace data.
     const req = context.with(suppressTracing(context.active()), () =>
       (url.protocol === "https:" ? https : http).request(url, {
@@ -326,11 +336,12 @@ export function runPreflight(cfg: ObsConfig): Promise<Diagnosis> {
         },
       }),
     );
-    timer = setTimeout(() => fail("IT_CONNECT_TIMEOUT"), PREFLIGHT_CONNECT_TIMEOUT_MS);
+    timer = setTimeout(() => expire("IT_CONNECT_TIMEOUT"), PREFLIGHT_CONNECT_TIMEOUT_MS);
     req.on("socket", (socket) => {
       socket.once("connect", () => {
+        connected = true;
         clearTimeout(timer);
-        timer = setTimeout(() => fail("IT_READ_TIMEOUT"), PREFLIGHT_READ_TIMEOUT_MS);
+        timer = setTimeout(() => expire("IT_READ_TIMEOUT"), PREFLIGHT_READ_TIMEOUT_MS);
       });
     });
     req.on("response", (res) => {
