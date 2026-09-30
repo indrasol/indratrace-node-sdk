@@ -146,8 +146,8 @@ describe("init through the real OTLP exporters", () => {
       expect(text).toMatch(/traces export FAILED/);
       expect(text).not.toContain(KEY);
     } finally {
-      out.restore();
       await shutdown();
+      out.restore();
     }
   });
 

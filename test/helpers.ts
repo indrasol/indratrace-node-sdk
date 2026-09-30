@@ -60,13 +60,15 @@ export async function fakeGateway(status: number, body = "", contentType = "appl
 /** Capture everything the SDK prints to stderr. */
 export function captureConsole() {
   const lines: string[] = [];
-  const orig = { warn: console.warn, error: console.error };
-  console.warn = (...a: unknown[]) => lines.push(a.join(" "));
-  console.error = (...a: unknown[]) => lines.push(a.join(" "));
+  const orig = process.stderr.write;
+  process.stderr.write = ((chunk: string | Uint8Array) => {
+    lines.push(String(chunk).replace(/\n$/, ""));
+    return true;
+  }) as typeof process.stderr.write;
   return {
     lines,
     restore() {
-      Object.assign(console, orig);
+      process.stderr.write = orig;
     },
   };
 }

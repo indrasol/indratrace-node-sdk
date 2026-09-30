@@ -17,6 +17,7 @@ the same attribute contract.
 - `traceAgent`, `traceTool`, `traceStep`, `session`, `recordFeedback`,
   `currentTraceId`, `recordLlmUsage`, `shutdown`.
 - Automatic spans for `node:http`, `fetch`, Express and Fastify; model spans with
-  token counts for OpenAI and Anthropic; pino and winston logs linked to traces.
+  token counts for OpenAI and Anthropic; `console`, pino, winston, bunyan and
+  log4js logs linked to traces.
 - A startup preflight and export-failure diagnoses in plain words, with the key
   redacted everywhere.

@@ -2,7 +2,8 @@
 //
 //   node dev/smoke/run.mjs
 //
-// Packs the repo, installs the tarball plus express/openai/@anthropic-ai/sdk/pino
+// Packs the repo, installs the tarball plus express, openai, @anthropic-ai/sdk and
+// the pino, log4js and bunyan loggers
 // into a temp project, runs a small app as ESM (--import indratrace/register) and
 // as CJS (--require indratrace/register) against a fake ingest gateway, decodes
 // the OTLP protobuf it receives, and asserts the contract. The unit tests cannot
@@ -27,7 +28,7 @@ try {
   const tgz = sh(["pack", "--silent", "--pack-destination", work], repo).trim().split(/\r?\n/).pop();
   writeFileSync(join(work, "package.json"), JSON.stringify({ name: "smoke", private: true, type: "module" }));
   for (const f of readdirSync(here).filter((f) => f.startsWith("app."))) cpSync(join(here, f), join(work, f));
-  sh(["install", "--no-audit", "--no-fund", join(work, tgz), "express", "openai", "@anthropic-ai/sdk", "pino"], work);
+  sh(["install", "--no-audit", "--no-fund", join(work, tgz), "express", "openai", "@anthropic-ai/sdk", "pino", "log4js", "bunyan"], work);
 
   for (const [mode, args] of [
     ["esm", ["--import", "indratrace/register", "app.mjs"]],
@@ -75,8 +76,9 @@ function check(mode, received) {
 
   assert.equal(spans.filter((s) => s.name.startsWith("chat ")).length, 2, where + "each model call must produce exactly one span");
   assert.equal(new Set(spans.map((s) => s.traceId)).size, 1, where + "all spans must share one trace");
-  assert.equal(logs.length, 1, where + "expected the one pino line");
-  assert.equal(logs[0].traceId, agent.traceId, where + "the log must carry the trace id");
+  const bodies = logs.map((l) => l.body).sort();
+  assert.deepEqual(bodies, ["bunyan line", "console line", "log4js line", "pino line"], where + "each log line exactly once");
+  for (const l of logs) assert.equal(l.traceId, agent.traceId, `${where}"${l.body}" must carry the trace id`);
 
   assert.equal(agent.attrs["indratrace.span.kind"], "agent");
   assert.equal(agent.attrs["session.id"], "conv-smoke");

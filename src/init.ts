@@ -9,7 +9,7 @@
 import { createRequire, register } from "node:module";
 import * as workerThreads from "node:worker_threads";
 import { context, diag, DiagLogLevel, metrics, propagation, trace } from "@opentelemetry/api";
-import { logs } from "@opentelemetry/api-logs";
+import { logs, SeverityNumber } from "@opentelemetry/api-logs";
 import { ExportResultCode, W3CTraceContextPropagator, type ExportResult } from "@opentelemetry/core";
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-proto";
 import { OTLPMetricExporter } from "@opentelemetry/exporter-metrics-otlp-proto";
@@ -17,6 +17,8 @@ import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { registerInstrumentations, type Instrumentation } from "@opentelemetry/instrumentation";
 import { ExpressInstrumentation } from "@opentelemetry/instrumentation-express";
 import { HttpInstrumentation } from "@opentelemetry/instrumentation-http";
+import { BunyanInstrumentation } from "@opentelemetry/instrumentation-bunyan";
+import { ConsoleInstrumentation } from "@opentelemetry/instrumentation-console";
 import { PinoInstrumentation } from "@opentelemetry/instrumentation-pino";
 import { UndiciInstrumentation } from "@opentelemetry/instrumentation-undici";
 import { WinstonInstrumentation } from "@opentelemetry/instrumentation-winston";
@@ -43,6 +45,8 @@ import {
   type ObsConfig,
 } from "./config.js";
 import { SessionSpanProcessor } from "./context.js";
+import { AiSdkInstrumentation, type Patchable } from "./ai-sdks.js";
+import { Log4jsInstrumentation } from "./log4js.js";
 import { errorText, log } from "./log.js";
 import { diagnosisLevel, ExportHealth, runPreflight } from "./preflight.js";
 import { INSTRUMENTATION_SCOPE, state } from "./state.js";
@@ -99,104 +103,42 @@ function observeExport<T, E extends Exportable<T>>(exporter: E, signal: string, 
 type InstrumentationSpec = [label: string, make: () => Instrumentation];
 
 function instrumentationSpecs(captureContent: boolean): InstrumentationSpec[] {
+  // INFO and above, like the Python SDK's logging bridge: console.debug/trace stay local.
+  const consoleCapture = new ConsoleInstrumentation({ logSeverity: SeverityNumber.INFO });
+  let openai: OpenAIInstrumentation | undefined;
+  let anthropic: AnthropicInstrumentation | undefined;
+  // ponytail: flips the console instrumentation's private re-entrancy flag, which is
+  // what it already uses to avoid capturing its own output. Replace with a public
+  // option if the package ever grows one.
+  const quietConsole = () => {
+    const c = consoleCapture as unknown as { _isEmitting?: boolean };
+    if (c._isEmitting) return () => {};
+    c._isEmitting = true;
+    return () => {
+      c._isEmitting = false;
+    };
+  };
   return [
     ["http", () => new HttpInstrumentation()],
     ["fetch", () => new UndiciInstrumentation()],
     ["express", () => new ExpressInstrumentation()],
     ["fastify", () => new FastifyOtelInstrumentation({ registerOnInitialization: true })],
     // traceContent is passed both ways on purpose: the instrumentors treat "unset" as ON.
-    ["openai", () => new OpenAIInstrumentation({ traceContent: captureContent })],
-    ["anthropic", () => new AnthropicInstrumentation({ traceContent: captureContent })],
+    ["openai", () => (openai = new OpenAIInstrumentation({ traceContent: captureContent }))],
+    ["anthropic", () => (anthropic = new AnthropicInstrumentation({ traceContent: captureContent }))],
+    // After the two above: fills the loads their own hook misses (see ai-sdks.ts).
+    // unpatch() is declared private in their typings but is a plain method at runtime.
+    ["ai-sdks", () => new AiSdkInstrumentation({ openai: openai as unknown as Patchable, anthropic: anthropic as unknown as Patchable })],
     ["pino", () => new PinoInstrumentation()],
     ["winston", () => new WinstonInstrumentation()],
+    ["bunyan", () => new BunyanInstrumentation()],
+    ["log4js", () => new Log4jsInstrumentation(quietConsole)],
+    ["console", () => consoleCapture],
   ];
 }
 
-type Patchable = { manuallyInstrument(m: any): void; unpatch(m: any): void };
-
-async function tryImport(specifier: string): Promise<any> {
-  try {
-    return await import(specifier);
-  } catch {
-    return undefined; // not installed: nothing to patch
-  }
-}
-
-function tryRequire(specifier: string): any {
-  try {
-    return createRequire(import.meta.url)(specifier);
-  } catch {
-    return undefined; // not installed, or ESM-only
-  }
-}
-
-/**
- * Patch openai and @anthropic-ai/sdk directly, on both of their builds, wherever
- * the require hook has not already done it:
- *  - ESM build: the tracers bundle an older @opentelemetry/instrumentation whose
- *    import hook cannot run beside the current one, so `import OpenAI from
- *    "openai"` is never hooked (Traceloop documents direct patching for ESM).
- *  - CJS build: the hook skips versions outside the tracer's declared range
- *    (openai 7 today, where the calls are otherwise unchanged).
- * Loading the CJS build here fires the require hook first, so an in-range version
- * is hook-patched and skipped below: never wrapped twice. Prototype patches apply
- * even to clients created before init. The CJS pass runs synchronously, inside
- * initObservability(), so a CJS app's first call is traced; the ESM pass needs an
- * async import() and is what the returned promise waits for. Undo functions go
- * into `undo`. Never rejects.
- */
-function patchAiSdks(instrumentations: Instrumentation[], statuses: [string, string][], undo: (() => void)[]): Promise<void> {
-  const find = (cls: Function) => instrumentations.find((i) => i instanceof cls) as Patchable | undefined;
-  const targets = [
-    {
-      label: "openai",
-      inst: find(OpenAIInstrumentation),
-      specifier: "openai",
-      // manuallyInstrument takes the OpenAI class; unpatch takes { OpenAI }.
-      cls: (m: any) => m?.OpenAI ?? m?.default,
-      method: (cls: any) => cls?.Chat?.Completions?.prototype?.create,
-      patch: (inst: Patchable, cls: any) => inst.manuallyInstrument(cls),
-      unpatch: (inst: Patchable, cls: any) => inst.unpatch({ OpenAI: cls }),
-    },
-    {
-      label: "anthropic",
-      inst: find(AnthropicInstrumentation),
-      specifier: "@anthropic-ai/sdk",
-      // Both take the module shape { Anthropic }.
-      cls: (m: any) => m?.Anthropic ?? m?.default,
-      method: (cls: any) => cls?.Messages?.prototype?.create,
-      patch: (inst: Patchable, cls: any) => inst.manuallyInstrument({ Anthropic: cls }),
-      unpatch: (inst: Patchable, cls: any) => inst.unpatch({ Anthropic: cls }),
-    },
-  ].filter((t) => t.inst !== undefined);
-
-  const patchBuild = (t: (typeof targets)[number], build: "cjs" | "esm", mod: unknown) => {
-    const cls = t.cls(mod);
-    const create = t.method(cls);
-    if (typeof create !== "function") return;
-    if ((create as { __wrapped?: boolean }).__wrapped) {
-      statuses.push([`${t.label}:${build}`, "enabled"]);
-      return;
-    }
-    try {
-      const inst = t.inst!;
-      t.patch(inst, cls);
-      undo.push(() => t.unpatch(inst, cls));
-      statuses.push([`${t.label}:${build}`, "enabled (patched directly)"]);
-    } catch (err) {
-      log.debug(`patching the ${build} build of ${t.specifier} failed: ${errorText(err)}`);
-      statuses.push([`${t.label}:${build}`, `skipped (${errorText(err)})`]);
-    }
-  };
-
-  for (const t of targets) patchBuild(t, "cjs", tryRequire(t.specifier));
-  return (async () => {
-    for (const t of targets) patchBuild(t, "esm", await tryImport(t.specifier));
-  })().catch(() => {});
-}
-
 /** Libraries that must load AFTER init to be patched. */
-const PATCHED_LIBRARIES = ["express", "fastify", "openai", "@anthropic-ai/sdk", "pino", "winston"];
+const PATCHED_LIBRARIES = ["express", "fastify", "openai", "@anthropic-ai/sdk", "pino", "winston", "bunyan", "log4js"];
 
 /**
  * The Node twin of Python's "Flask imported before init" warning: a library already
@@ -246,8 +188,8 @@ async function preflight(cfg: ObsConfig): Promise<void> {
  * `node --import indratrace/register app.js`.
  *
  * Throws IndraTraceConfigError synchronously when there is no API key. Returns a
- * promise that settles when startup is done (AI SDKs patched, one-time preflight
- * finished); you do not need to await it. It never rejects unless INDRATRACE_PREFLIGHT=strict.
+ * promise that settles when the one-time startup preflight is done; you do not
+ * need to await it. It never rejects unless INDRATRACE_PREFLIGHT=strict.
  * Calling it twice is a no-op.
  */
 export function initObservability(options: InitOptions = {}): Promise<void> {
@@ -349,13 +291,10 @@ export function initObservability(options: InitOptions = {}): Promise<void> {
       );
     }
 
-    const aiPatched = patchAiSdks(s.instrumentations, statuses, s.cleanups).then(() => {
-      if (debug) {
-        const serviceName = String(resource.attributes["service.name"] ?? "unknown_service");
-        log.debug(banner(cfg, serviceName, captureContent, statuses));
-      }
-    }).catch(() => {});
-    s.aiPatched = aiPatched;
+    if (debug) {
+      const serviceName = String(resource.attributes["service.name"] ?? "unknown_service");
+      log.debug(banner(cfg, serviceName, captureContent, statuses));
+    }
 
     if (debug) {
       // One startup span, flushed now, so debug reports reachability immediately.
@@ -382,7 +321,7 @@ export function initObservability(options: InitOptions = {}): Promise<void> {
     if (err instanceof IndraTraceConfigError) throw err;
     log.debug(`startup preflight crashed: ${errorText(err)}`);
   });
-  s.ready = Promise.all([s.aiPatched, checked]).then(() => {});
+  s.ready = checked;
   return s.ready;
 }
 
@@ -393,20 +332,10 @@ export function initObservability(options: InitOptions = {}): Promise<void> {
 export async function shutdown(): Promise<void> {
   const s = state();
   const { tracerProvider, loggerProvider, meterProvider, instrumentations } = s;
-  await s.aiPatched;
-  const cleanups = s.cleanups.splice(0);
   s.initialized = false;
   s.tracerProvider = s.loggerProvider = s.meterProvider = undefined;
   s.instrumentations = [];
   s.ready = Promise.resolve();
-  s.aiPatched = Promise.resolve();
-  for (const undo of cleanups) {
-    try {
-      undo();
-    } catch {
-      // best-effort
-    }
-  }
   for (const i of instrumentations) {
     try {
       i.disable();

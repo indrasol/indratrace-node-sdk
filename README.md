@@ -100,10 +100,20 @@ app.post("/check", async (req, res) => res.json(await run(req.body.query)));
 | Express, Fastify | route-level spans (`http.route`) |
 | Outgoing `fetch` and `http` | client spans, with trace context passed downstream |
 | OpenAI, Anthropic | a span per model call, with exact token counts |
-| pino, winston | every log line, linked to the trace it was written in |
+| `console.log` / `info` / `warn` / `error` | every line at INFO and above (`console.debug` stays local), linked to the trace it was written in |
+| pino, winston, bunyan, log4js | every log line, linked to the trace it was written in |
 
 Everything lands in **one trace**: request → route → your agent → tools → model
 calls, with the logs attached. Metrics from the HTTP instrumentation are sent too.
+
+Logs still print to the terminal exactly as before; they are *also* sent. A line
+that a logging library prints through `console` (log4js's console appender, for
+example) is sent once, not twice. Browser logs are not covered: this package runs
+on the server.
+
+Calls to your other services carry the trace id in the standard `traceparent`
+header, so a Node.js service calling another traced service (Node.js, or Python
+with the `indratrace` Python package) continues the same trace.
 
 ## Token usage from model calls
 

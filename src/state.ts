@@ -17,10 +17,6 @@ export interface SdkState {
   instrumentations: Instrumentation[];
   exitHookInstalled?: boolean;
   importHookRegistered?: boolean;
-  /** Settles when openai/@anthropic-ai/sdk are patched (see init.patchAiSdks). */
-  aiPatched: Promise<void>;
-  /** Undo functions for patches that instrumentation.disable() does not reach. */
-  cleanups: (() => void)[];
 }
 
 const KEY = Symbol.for("indratrace.sdk.state");
@@ -31,9 +27,7 @@ export function state(): SdkState {
   return (g[KEY] ??= {
     initialized: false,
     ready: Promise.resolve(),
-    aiPatched: Promise.resolve(),
     instrumentations: [],
-    cleanups: [],
   });
 }
 

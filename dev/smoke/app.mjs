@@ -5,6 +5,8 @@ import express from "express";
 import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
 import pino from "pino";
+import log4js from "log4js";
+import bunyan from "bunyan";
 import { traceAgent, traceTool, session, shutdown } from "indratrace";
 
 const fake = (body) => async () => new Response(JSON.stringify(body), { headers: { "content-type": "application/json" } });
@@ -24,13 +26,20 @@ const anthropic = new Anthropic({
     usage: { input_tokens: 13, output_tokens: 5 },
   }),
 });
-const logger = pino({ enabled: true }, { write() {} }); // shipped via OTel, not printed
+// pino and bunyan write nowhere locally; log4js prints through console.log. All are shipped.
+const logger = pino({ enabled: true }, { write() {} });
+log4js.configure({ appenders: { out: { type: "console" } }, categories: { default: { appenders: ["out"], level: "info" } } });
+const l4 = log4js.getLogger("smoke");
+const bun = bunyan.createLogger({ name: "smoke", streams: [{ stream: { write() {} } }] });
 
 const lookup = traceTool(async function lookup(q) {
   return q.length;
 });
 const agent = traceAgent("smoke-agent", async (q) => {
-  logger.info("inside the agent");
+  logger.info("pino line");
+  l4.info("log4js line"); // prints through console.log: must still arrive once
+  bun.info("bunyan line");
+  console.log("console line");
   await lookup(q);
   await openai.chat.completions.create({ model: "gpt-4o-mini", messages: [{ role: "user", content: "SECRET_PROMPT " + q }] });
   await anthropic.messages.create({ model: "claude-haiku-4-5", max_tokens: 10, messages: [{ role: "user", content: "SECRET_PROMPT " + q }] });
