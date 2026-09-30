@@ -5,7 +5,7 @@ All notable changes to this package are documented here. The format follows
 [Semantic Versioning](https://semver.org/). npm version numbers can never be
 reused, so every fix ships as a new version.
 
-## [0.1.0] - Unreleased
+## [0.1.0] - 2026-09-30
 
 First release: the Node.js twin of the Python `indratrace` package, following
 the same attribute contract.
