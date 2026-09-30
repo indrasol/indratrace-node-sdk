@@ -11,6 +11,8 @@ reused, so every fix ships as a new version.
 - The package documents its own contract with the platform in
   `docs/conventions.md` (every attribute name and transport rule), and the README
   links there. The README logo is served from this repository.
+- The README gives one start line for every app, `node --import indratrace/register
+  app.js`, which works for CommonJS apps too; `--require` remains an alternative.
 
 ## [0.1.0] - 2026-09-30
 

@@ -33,6 +33,8 @@ try {
   for (const [mode, args] of [
     ["esm", ["--import", "indratrace/register", "app.mjs"]],
     ["cjs", ["--require", "indratrace/register", "app.cjs"]],
+    // The one line the README gives every app: --import also covers CommonJS.
+    ["cjs-with-import", ["--import", "indratrace/register", "app.cjs"]],
   ]) {
     const received = [];
     const gateway = http.createServer((req, res) => {

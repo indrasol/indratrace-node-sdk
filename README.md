@@ -37,16 +37,20 @@ Two words to know up front:
 Tracing works by patching libraries **as they load**, so the SDK has to start
 before your app imports Express, OpenAI and the rest.
 
-**1. The start flag (recommended, works for every app).** Nothing changes in your code:
+**1. The start flag (recommended).** One line for every app, whether it uses
+`import` (ES modules) or `require` (CommonJS). Nothing changes in your code:
 
 ```bash
-node --import indratrace/register app.js      # ES modules ("type": "module", import ...)
-node --require indratrace/register app.js     # CommonJS (require ...)
+node --import indratrace/register app.js
 ```
 
 It reads the key from `INDRATRACE_API_KEY`. In a `package.json` script:
 `"start": "node --import indratrace/register app.js"`. In a Dockerfile:
-`ENV NODE_OPTIONS="--import indratrace/register"`.
+`ENV NODE_OPTIONS="--import indratrace/register"`. On Windows PowerShell, set the
+key first: `$env:INDRATRACE_API_KEY="it_live_..."`, then run the same `node` line.
+
+(A tool that only accepts `--require` can use `node --require indratrace/register
+app.js` for a CommonJS app; it does the same thing.)
 
 **2. In code.** Call it first, in a file of its own that runs before anything else:
 
