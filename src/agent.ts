@@ -1,9 +1,8 @@
 /**
  * traceAgent / traceTool / traceStep, plus the recordLlmUsage fallback.
- * Port of the Python SDK's `agent.py` and `genai.record_llm_usage`.
  *
  * Wrapper functions, not decorators: TS decorators only apply to class members,
- * and agent code is mostly plain functions. Two rules, same as Python:
+ * and agent code is mostly plain functions. Two rules:
  *  1. Transparent - the wrapper returns and throws exactly what the function does;
  *     an error is recorded on the span (status ERROR) and re-thrown unchanged.
  *  2. Never throw from instrumentation - if a span cannot be started, the

@@ -31,7 +31,7 @@ describe("console capture", () => {
     expect(byBody("order A-17 placed")?.spanContext?.traceId).toBe(traceId);
   });
 
-  it("keeps console.debug local (INFO and above only, like the Python SDK)", async () => {
+  it("keeps console.debug local (INFO and above only)", async () => {
     const t = await initInMemory();
     console.debug("noisy detail");
     expect((await records(t)).some((r) => r.body === "noisy detail")).toBe(false);

@@ -2,8 +2,8 @@
 
 Thin OpenTelemetry wrapper that lets a Node.js product plug into the IndraTrace
 platform with one init call or one start flag. Published publicly on npm as
-`indratrace`. The Node twin of `indratrace-python-sdk`. The platform is the
-IndraTrace backend (closed source): never import from or depend on it.
+`indratrace`. The platform is the IndraTrace backend (closed source): never import
+from or depend on it.
 
 ## Stack
 - TypeScript (strict), Node >= 20.6, built to ESM + CJS with tsup.
@@ -16,9 +16,9 @@ IndraTrace backend (closed source): never import from or depend on it.
   test for auto-instrumentation.
 
 ## The contract
-`../indratrace-python-sdk/docs/conventions.md` is the attribute contract for BOTH
-SDKs. Treat it as law; change it only through an ADR in that repo. This package
-sends `telemetry.sdk.wrapper = indratrace-js/<version>`.
+`docs/conventions.md` is the contract with the platform: every attribute name and
+transport rule it reads. Treat it as law; change it deliberately, with a CHANGELOG
+entry and a test.
 
 ## Conventions
 - Commit to `main` in small working increments. Conventional Commits.

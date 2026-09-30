@@ -5,10 +5,17 @@ All notable changes to this package are documented here. The format follows
 [Semantic Versioning](https://semver.org/). npm version numbers can never be
 reused, so every fix ships as a new version.
 
+## [Unreleased]
+
+### Changed
+- The package documents its own contract with the platform in
+  `docs/conventions.md` (every attribute name and transport rule), and the README
+  links there. The README logo is served from this repository.
+
 ## [0.1.0] - 2026-09-30
 
-First release: the Node.js twin of the Python `indratrace` package, following
-the same attribute contract.
+First release: the one-line OpenTelemetry setup for IndraTrace. What it sends is
+documented in `docs/conventions.md`.
 
 ### Added
 - `initObservability()`: traces, logs and metrics over OTLP/HTTP to the IndraTrace

@@ -1,7 +1,7 @@
 /**
  * Startup preflight and export-failure surfacing: say *which* thing is wrong.
  *
- * Port of the Python SDK's `preflight.py`. A blocked firewall, a bad key and an
+ * A blocked firewall, a bad key and an
  * org with no card all look the same from outside (the app runs, nothing
  * arrives), so both the one-time startup probe and the export watcher map the
  * outcome to a named cause and one paragraph a human can act on.

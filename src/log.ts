@@ -1,6 +1,6 @@
 /**
  * The SDK's own diagnostics, on stderr. Warnings and errors always print (like
- * Python's logging with no handler configured); debug and info only with
+ * any logger with no handler configured); debug and info only with
  * `debug: true` / `INDRATRACE_DEBUG`. Every line goes through key redaction here,
  * once, so no caller can leak the key by accident.
  *

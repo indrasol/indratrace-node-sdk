@@ -1,5 +1,5 @@
 <h1 align="center">
-  <img src="https://raw.githubusercontent.com/indrasol/indratrace-python-sdk/main/assets/indrabot-mascot.png" width="64" align="center" alt="Indrabot">
+  <img src="https://raw.githubusercontent.com/indrasol/indratrace-node-sdk/main/assets/indrabot-mascot.png" width="64" align="center" alt="Indrabot">
   IndraTrace SDK for Node.js
 </h1>
 
@@ -112,8 +112,8 @@ example) is sent once, not twice. Browser logs are not covered: this package run
 on the server.
 
 Calls to your other services carry the trace id in the standard `traceparent`
-header, so a Node.js service calling another traced service (Node.js, or Python
-with the `indratrace` Python package) continues the same trace.
+header, so a Node.js service calling another traced service continues the same
+trace.
 
 ## Token usage from model calls
 
@@ -239,6 +239,6 @@ npm test          # unit tests
 npm run smoke     # packs the package and runs a real app against a fake gateway
 ```
 
-The attribute contract this package follows lives in the Python SDK repo:
-[`docs/conventions.md`](https://github.com/indrasol/indratrace-python-sdk/blob/main/docs/conventions.md).
+Everything this package sends, attribute by attribute, is documented in
+[`docs/conventions.md`](docs/conventions.md).
 Security reports: see [SECURITY.md](SECURITY.md). Licensed under Apache-2.0.

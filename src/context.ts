@@ -1,5 +1,5 @@
 /**
- * Session/user context and the feedback API. Port of the Python SDK's `context.py`.
+ * Session/user context and the feedback API.
  *
  * `session()` puts the ids into OTel baggage; `SessionSpanProcessor` copies them
  * onto every span at start - decorator spans, HTTP spans and model spans alike.

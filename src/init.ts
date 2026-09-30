@@ -1,8 +1,7 @@
 /**
- * initObservability: wire OpenTelemetry to ship to IndraTrace. Port of the Python
- * SDK's `init.py`.
+ * initObservability: wire OpenTelemetry to ship to IndraTrace.
  *
- * Fail silent (Python ADR 0003): the only error that reaches the caller is
+ * Fail silent: the only error that reaches the caller is
  * IndraTraceConfigError for a missing key (and, with INDRATRACE_PREFLIGHT=strict,
  * a rejected returned promise). Everything else is logged and dropped.
  */
@@ -103,7 +102,7 @@ function observeExport<T, E extends Exportable<T>>(exporter: E, signal: string, 
 type InstrumentationSpec = [label: string, make: () => Instrumentation];
 
 function instrumentationSpecs(captureContent: boolean): InstrumentationSpec[] {
-  // INFO and above, like the Python SDK's logging bridge: console.debug/trace stay local.
+  // INFO and above: console.debug/trace are usually noise and stay local.
   const consoleCapture = new ConsoleInstrumentation({ logSeverity: SeverityNumber.INFO });
   let openai: OpenAIInstrumentation | undefined;
   let anthropic: AnthropicInstrumentation | undefined;
@@ -141,9 +140,9 @@ function instrumentationSpecs(captureContent: boolean): InstrumentationSpec[] {
 const PATCHED_LIBRARIES = ["express", "fastify", "openai", "@anthropic-ai/sdk", "pino", "winston", "bunyan", "log4js"];
 
 /**
- * The Node twin of Python's "Flask imported before init" warning: a library already
- * in the require cache was loaded before its instrumentation existed, so it
- * silently produces zero spans. Heuristic (native-ESM loads are not in this cache).
+ * Libraries that were loaded before init: they sit in the require cache from before
+ * their instrumentation existed, so they silently produce zero spans. Heuristic
+ * (native-ESM loads are not in this cache).
  */
 function librariesLoadedTooEarly(): string[] {
   try {

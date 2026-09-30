@@ -1,9 +1,9 @@
 /**
  * Config resolution: the API key, and a small number of optional labels.
  *
- * Port of the Python SDK's `config.py`. The key decides identity (Python ADR 0009):
- * `product`, `deployment.environment` and `tenant.id` are stamped by the ingest
- * gateway from the key, so they are not ours to resolve or to send.
+ * The key decides identity: `product`, `deployment.environment` and `tenant.id` are
+ * stamped by the ingest gateway from the key, so they are not ours to resolve or to
+ * send (docs/conventions.md).
  */
 import {
   defaultResource,
@@ -39,7 +39,7 @@ export const ENV_PREFLIGHT = "INDRATRACE_PREFLIGHT";
 export const ENV_CAPTURE_CONTENT = "INDRATRACE_CAPTURE_CONTENT";
 export const ENV_DEBUG = "INDRATRACE_DEBUG";
 
-/** Fixed transport contract (conventions.md § Transport). */
+/** Fixed transport contract (docs/conventions.md, Transport). */
 export const API_KEY_HEADER = "x-indratrace-key";
 
 /** Owned by the gateway (`ingest/stamp.py::STAMPED_ATTRS`); the SDK never sends them. */
