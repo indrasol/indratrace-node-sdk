@@ -1,6 +1,9 @@
-import { readFileSync } from "node:fs";
-import { afterEach, describe, expect, it } from "vitest";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterAll, afterEach, describe, expect, it } from "vitest";
 import {
+  appPackageVersion,
   buildResource,
   DEFAULT_ENDPOINT,
   GATEWAY_STAMPED_ATTRS,
@@ -12,6 +15,7 @@ import {
   resolveConfig,
   resolveFlag,
   resolvePreflightMode,
+  resolveServiceVersion,
   signalUrl,
 } from "../src/config.js";
 import { VERSION } from "../src/version.js";
@@ -71,7 +75,79 @@ describe("buildResource", () => {
     process.env.OTEL_SERVICE_NAME = "from-otel-env";
     const r = buildResource(resolveConfig({ apiKey: "k" }));
     expect(r.attributes["service.name"]).toBe("from-otel-env");
-    expect(r.attributes["service.version"]).toBe("0.0.0");
+  });
+});
+
+describe("resolveServiceVersion - first answer wins: option, env, package.json, 0.0.0", () => {
+  // A throwaway app tree:  <root>/app/package.json (version 2.3.4) + app/src/server.js,
+  // <root>/bare/package.json (no version), <root>/app/node_modules/tool/cli.js.
+  const root = mkdtempSync(join(tmpdir(), "it-version-"));
+  const app = join(root, "app");
+  mkdirSync(join(app, "src"), { recursive: true });
+  mkdirSync(join(app, "node_modules", "tool"), { recursive: true });
+  mkdirSync(join(root, "bare", "src"), { recursive: true });
+  writeFileSync(join(app, "package.json"), JSON.stringify({ name: "shop", version: "2.3.4" }));
+  writeFileSync(join(app, "node_modules", "tool", "package.json"), JSON.stringify({ version: "9.9.9" }));
+  writeFileSync(join(root, "bare", "package.json"), JSON.stringify({ name: "no-version" }));
+  const entry = join(app, "src", "server.js");
+  afterAll(() => rmSync(root, { recursive: true, force: true }));
+
+  function clean() {
+    delete process.env.OTEL_RESOURCE_ATTRIBUTES;
+    delete process.env.npm_package_version; // `npm test` sets it to THIS package's version
+  }
+
+  it("the option wins over everything", () => {
+    clean();
+    process.env.OTEL_RESOURCE_ATTRIBUTES = "service.version=1.0.0";
+    expect(resolveServiceVersion("5.0.0", entry, app)).toEqual({ version: "5.0.0", source: "option" });
+  });
+
+  it("then service.version from OTEL_RESOURCE_ATTRIBUTES", () => {
+    clean();
+    process.env.OTEL_RESOURCE_ATTRIBUTES = "team=core,service.version=1.0.0";
+    expect(resolveServiceVersion(undefined, entry, app)).toEqual({ version: "1.0.0", source: "env" });
+  });
+
+  it("then npm_package_version (npm start / npm run hand it over)", () => {
+    clean();
+    process.env.npm_package_version = "3.0.0";
+    expect(resolveServiceVersion(undefined, entry, app)).toEqual({ version: "3.0.0", source: "package.json" });
+  });
+
+  it("then the nearest package.json above the entry script", () => {
+    clean();
+    expect(resolveServiceVersion(undefined, entry, root)).toEqual({ version: "2.3.4", source: "package.json" });
+  });
+
+  it("never an installed library's: an entry inside node_modules falls back to the working dir", () => {
+    clean();
+    const cli = join(app, "node_modules", "tool", "cli.js");
+    expect(appPackageVersion(cli, app)).toBe("2.3.4");
+  });
+
+  it("the nearest package.json is the answer even without a version - no climbing past it", () => {
+    clean();
+    expect(resolveServiceVersion(undefined, join(root, "bare", "src", "x.js"), root)).toEqual({
+      version: "0.0.0",
+      source: "default",
+    });
+  });
+
+  it("an unreadable package.json is 'not set', never an error", () => {
+    clean();
+    const broken = join(root, "broken");
+    mkdirSync(broken, { recursive: true });
+    writeFileSync(join(broken, "package.json"), "{ not json");
+    expect(appPackageVersion(join(broken, "x.js"), broken)).toBeUndefined();
+  });
+
+  it("and resolveConfig carries it to the resource", () => {
+    clean();
+    process.env.OTEL_RESOURCE_ATTRIBUTES = "service.version=4.5.6";
+    const cfg = resolveConfig({ apiKey: "k" });
+    expect(cfg.serviceVersionSource).toBe("env");
+    expect(buildResource(cfg).attributes["service.version"]).toBe("4.5.6");
   });
 });
 

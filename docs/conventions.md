@@ -26,7 +26,7 @@ Sent by the package:
 | Attribute | Value |
 |---|---|
 | `service.name` | the `serviceName` option, else `OTEL_SERVICE_NAME`, else OpenTelemetry's `unknown_service:...` |
-| `service.version` | the `serviceVersion` option, else `0.0.0` |
+| `service.version` | the `serviceVersion` option, else `service.version` from `OTEL_RESOURCE_ATTRIBUTES`, else the app's own `package.json` `version` (`npm_package_version`, else the nearest `package.json` at or above the entry script - never one inside `node_modules`), else `0.0.0`, which the platform reads as "not set" |
 | `telemetry.sdk.wrapper` | `indratrace-js/<package version>` |
 
 Stamped by the gateway from the API key, **never sent** by the package (removed even

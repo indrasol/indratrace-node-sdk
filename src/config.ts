@@ -12,6 +12,8 @@ import {
   resourceFromAttributes,
   type Resource,
 } from "@opentelemetry/resources";
+import { readFileSync } from "node:fs";
+import { dirname, join, resolve as resolvePath } from "node:path";
 import { VERSION } from "./version.js";
 
 /**
@@ -54,6 +56,9 @@ const FALSY = new Set(["0", "false", "no", "off"]);
 
 export type EndpointSource = "default" | "env";
 
+/** Where the app's release number came from - shown in the debug banner. */
+export type VersionSource = "option" | "env" | "package.json" | "default";
+
 export interface ObsConfig {
   apiKey: string;
   endpoint: string;
@@ -61,6 +66,7 @@ export interface ObsConfig {
   /** undefined = let OpenTelemetry decide (OTEL_SERVICE_NAME, else unknown_service). */
   serviceName?: string;
   serviceVersion: string;
+  serviceVersionSource: VersionSource;
 }
 
 export interface ConfigInput {
@@ -74,13 +80,70 @@ export function resolveConfig(input: ConfigInput = {}): ObsConfig {
   const apiKey = input.apiKey || process.env[ENV_API_KEY];
   if (!apiKey) throw new IndraTraceConfigError(MISSING_API_KEY_MESSAGE);
   const override = process.env[ENV_ENDPOINT];
+  const version = resolveServiceVersion(input.serviceVersion);
   return {
     apiKey,
     endpoint: override || DEFAULT_ENDPOINT,
     endpointSource: override ? "env" : "default",
     serviceName: input.serviceName || undefined,
-    serviceVersion: input.serviceVersion || DEFAULT_SERVICE_VERSION,
+    serviceVersion: version.version,
+    serviceVersionSource: version.source,
   };
+}
+
+/**
+ * The app's release number, first answer wins - so the one-line `--import` start needs
+ * no option for it:
+ *   1. the `serviceVersion` option (set in code, on purpose);
+ *   2. `service.version` in OTEL_RESOURCE_ATTRIBUTES (set in the server's settings, on purpose);
+ *   3. the app's own package.json `version` (found by us - the fallback);
+ *   4. else 0.0.0, which IndraTrace reads as "not set".
+ */
+export function resolveServiceVersion(
+  explicit: string | undefined,
+  entry: string | undefined = process.argv[1],
+  cwd: string = process.cwd(),
+): { version: string; source: VersionSource } {
+  if (explicit) return { version: explicit, source: "option" };
+  const fromEnv = detectResources({ detectors: [envDetector] }).attributes["service.version"];
+  if (typeof fromEnv === "string" && fromEnv) return { version: fromEnv, source: "env" };
+  const fromPackage = appPackageVersion(entry, cwd);
+  if (fromPackage) return { version: fromPackage, source: "package.json" };
+  return { version: DEFAULT_SERVICE_VERSION, source: "default" };
+}
+
+const IN_NODE_MODULES = /[\\/]node_modules([\\/]|$)/;
+
+/**
+ * The `version` of the app's own package.json. `npm start` / `npm run` already hand it
+ * over as npm_package_version; otherwise the nearest package.json at or above the
+ * entry script. Never an installed library's: an entry inside node_modules (a CLI that
+ * runs the app) falls back to the working directory. The NEAREST package.json is the
+ * answer even without a version - climbing past it would read some other project's.
+ * Any read or parse failure is "no version", never an error.
+ */
+export function appPackageVersion(entry: string | undefined, cwd: string): string | undefined {
+  const fromNpm = process.env.npm_package_version;
+  if (fromNpm) return fromNpm;
+  let dir = entry ? dirname(resolvePath(entry)) : cwd;
+  if (IN_NODE_MODULES.test(dir)) dir = cwd;
+  for (;;) {
+    let text: string;
+    try {
+      text = readFileSync(join(dir, "package.json"), "utf8");
+    } catch {
+      const up = dirname(dir);
+      if (up === dir) return undefined;
+      dir = up;
+      continue;
+    }
+    try {
+      const version: unknown = JSON.parse(text).version;
+      return typeof version === "string" && version.trim() ? version.trim() : undefined;
+    } catch {
+      return undefined;
+    }
+  }
 }
 
 export function signalUrl(cfg: ObsConfig, signal: "traces" | "logs" | "metrics"): string {

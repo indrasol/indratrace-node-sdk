@@ -188,7 +188,7 @@ process.on("SIGTERM", async () => { await shutdown(); process.exit(0); });
 |---|---|---|---|
 | API key (required) | `apiKey` | `INDRATRACE_API_KEY` | none: startup throws `IndraTraceConfigError` |
 | Service name | `serviceName` | `OTEL_SERVICE_NAME` | `unknown_service` |
-| Service version | `serviceVersion` | | `0.0.0` |
+| Service version (your app's release) | `serviceVersion` | `OTEL_RESOURCE_ATTRIBUTES=service.version=1.5.0` | your `package.json` `version`, else `0.0.0` (shown as not set) |
 | Prompt/completion text | `captureContent` | `INDRATRACE_CAPTURE_CONTENT` | off |
 | Diagnostics | `debug` | `INDRATRACE_DEBUG` | off |
 | Startup check | | `INDRATRACE_PREFLIGHT` | `warn` (`strict` fails, `0` skips) |

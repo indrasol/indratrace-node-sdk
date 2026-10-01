@@ -56,7 +56,8 @@ export interface InitOptions {
   apiKey?: string;
   /** Name of this deployable (an API vs a worker). Defaults to OTEL_SERVICE_NAME, else unknown_service. */
   serviceName?: string;
-  /** Your app's version, e.g. "1.4.2". Defaults to 0.0.0. */
+  /** Your app's release, e.g. "1.4.2". Else service.version in OTEL_RESOURCE_ATTRIBUTES, else
+   *  your package.json `version`, else 0.0.0 ("not set"). */
   serviceVersion?: string;
   /** Record prompt/completion TEXT on model spans. Off by default. Env: INDRATRACE_CAPTURE_CONTENT. */
   captureContent?: boolean;
@@ -157,7 +158,7 @@ function librariesLoadedTooEarly(): string[] {
 function banner(cfg: ObsConfig, serviceName: string, captureContent: boolean, statuses: [string, string][]): string {
   return [
     `IndraTrace SDK v${VERSION} (node) initialized`,
-    `  service=${serviceName} version=${cfg.serviceVersion}`,
+    `  service=${serviceName} version=${cfg.serviceVersion} (from ${cfg.serviceVersionSource === "default" ? "nothing - not set" : cfg.serviceVersionSource})`,
     `  endpoint=${redactUrlCredentials(cfg.endpoint)} (traces=${redactUrlCredentials(signalUrl(cfg, "traces"))})`,
     `  api_key=set capture_content=${captureContent ? "on" : "off"}`,
     "  identity: product, deployment.environment and tenant.id are stamped by IndraTrace from your API key",
